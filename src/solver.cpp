@@ -331,6 +331,28 @@ int main(int argc,char**argv){
     // can be cached and read concurrently without mutating DSU.
     std::vector<u32> knownRoots(users.names.size());
     for(size_t i=0;i<knownRoots.size();i++)knownRoots[i]=users.root((u32)i);
+    // Compact read-only flat lookup from user ID to canonical person. Build once
+    // after linked IDs + clicks are registered, before parallel event validation.
+    struct KnownKey {std::string_view key; u32 root=0;};
+    size_t lookupSize=16;
+    while(lookupSize<users.dictionary.size()*2)lookupSize*=2;
+    std::vector<KnownKey> knownTable(lookupSize);
+    const size_t lookupMask=lookupSize-1;
+    for(auto const&entry:users.dictionary){
+        std::string_view key(entry.first);
+        size_t slot=(size_t)(hash_id(key)^(hash_id(key)>>32))&lookupMask;
+        while(!knownTable[slot].key.empty())slot=(slot+1)&lookupMask;
+        knownTable[slot]={key,knownRoots[entry.second]};
+    }
+    auto knownLookup=[&](std::string_view key)->u32{
+        const uint64_t h=hash_id(key);
+        size_t slot=(size_t)(h^(h>>32))&lookupMask;
+        while(!knownTable[slot].key.empty()){
+            if(knownTable[slot].key==key)return knownTable[slot].root;
+            slot=(slot+1)&lookupMask;
+        }
+        return UINT32_MAX;
+    };
     // 4. Parse every event CSV in parallel using memory mapping. Dedup happens
     // BEFORE validation, preserving the smallest ingest_ts even if it is invalid.
     constexpr size_t PARTS=16;
@@ -401,8 +423,7 @@ int main(int argc,char**argv){
               if(kind==2){i64 p;if(!parse_unsigned(v[6],p,10000000)||p<1)return;price=(int32_t)p;}
               auto product=productCategory.find(v[5]);
               const uint16_t category=(uint16_t)(product==productCategory.end()?unknownCat:product->second);
-              auto existing=users.dictionary.find(v[1]);
-              u32 person=(existing==users.dictionary.end())?UINT32_MAX:knownRoots[existing->second];
+              u32 person=knownLookup(v[1]);
               if(person==UINT32_MAX)newUserIds[part].insert(v[1]);
               valid.push_back({v[1],t,price,person,category,(uint8_t)kind});
           };

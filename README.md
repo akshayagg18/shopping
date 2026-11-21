@@ -1,3 +1,7 @@
+## V3 profile-backed optimization (candidate, not officially scored)
+
+V3 improves customer ID lookups during event validation using a compact, read-only hash table. **11/11 local tests pass.** Three paired 10M-event C++ benchmarks: V2 mean 4.250 s → V3 mean 3.447 s (18.9% faster); event dedup+validation 2.010 s → 1.499 s (25.4% faster). Full eight-run stage breakdown and limitations: [docs/V3_PROFILING_RESULTS.md](docs/V3_PROFILING_RESULTS.md). **This does not include Docker/Parquet processing and is not an official competition time.** The existing V2 branch and official 13.16-second submission are preserved.
+
 # Shopping Sessions — Performance V2
 
 Optimized C++20 submission candidate for [Builders Buildathon 2026 — Databricks Shopping Sessions](https://www.joinbuilders.org/buildathon/tracks/shopping-sessions).
