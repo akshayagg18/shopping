@@ -8,13 +8,14 @@
 - [x] MIT license included
 - [x] 36/36 official fixtures pass
 - [x] 1M official dev answer exact match
+- [ ] Generated 20M corpus finishes inside the five-minute practice ceiling (Windows Docker probe exceeded the cap)
 - [ ] Public GitHub remote created and pushed (GitHub authentication required)
 - [ ] Commit submitted on track page (Buildathon authentication required)
 - [ ] Official score/rank/feedback recorded
 
 Suggested repository: `builders-shopping-sessions`
 
-Local candidate commit before this checklist update: `ba6584f1f2bbc9c615d740a28a0aacb4c591349f`.
+Implementation baseline before the spill hardening/report update: `891fa4f2851c5009002cda0208a81d61118efdb5`.
 
 Use `git rev-parse HEAD` for the final SHA to submit after any documentation update.
 

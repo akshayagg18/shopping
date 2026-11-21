@@ -74,10 +74,13 @@ The dominant work is expected to be:
 - Attribution is a per-person sliding deque plus campaign counter: `O(clicks + sessions + emitted campaign assists)`, without an all-pairs range join.
 - The post-session event frame is narrowed and materialized once. Reusing it for session and top-category aggregation reduced the 1M local run from 4.797 seconds to a 2.958-second median (38.3% faster) while preserving the official exact match.
 - Uncompressed Parquet avoids compression CPU and is accepted by the checker.
+- Polars 2.1's out-of-core spill path is controlled by `POLARS_OOC_SPILL_DIR`; `POLARS_TEMP_DIR` alone did not prevent a `/var/tmp` write under a read-only root. The launcher now provisions `/scratch/polars-spill` explicitly.
+- A scorer-shaped Windows Docker run on a generated 20M-event/5M-click corpus passed the corrected spill-path failure point but exceeded the five-minute practice ceiling and was stopped. This is a failed local scale test, not an official scorer result.
 
 ## Hypotheses and next experiments
 
 - **Likely:** For 20M/60M, Python union-find and attribution loops may become the main limit after Polars sorting. Porting those two components plus raw parsing to a small Rust binary could approach the 1–2 second leaderboard class only if the leaderboard dataset is heavily cached or scores reflect specialized compiled pipelines.
+- **Observed locally:** Event parsing, deduplication and session sorting dominate before attribution at scale; parser-only rewrites that remained spec-exact did not bring the Windows host run under five minutes. A fused compiled path is a higher-value next experiment than further DataFrame micro-tuning.
 - **Likely:** String interning/categorical encoding of `person`, `campaign_id`, `event_type` and `category` before the session sort could reduce memory bandwidth, but must be benchmarked because encode/decode overhead may erase gains.
 - **Hypothesis:** A single compiled radix sort keyed by interned person and integer timestamp, followed by fused session/user/campaign aggregation, can eliminate most intermediate DataFrames and allocations.
 - **Hypothesis:** CRLF pre-detection doubles sequential reads in worst-case inputs. The official generator never emits `\r`, so a future competition-only fast path could skip that scan, but doing so would weaken correctness for permitted hand-written inputs and was not adopted.

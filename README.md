@@ -47,6 +47,9 @@ Verified results for this revision:
 - Both 1M dev tables exactly match the official answers (117,038 `user_daily` rows; 27,400 `campaign_daily` rows).
 - Local Python median: 2.958 seconds over three warm runs.
 - Scorer-like Docker wall time on Windows Docker Desktop: 9.154 seconds. This is not comparable to the official Linux scorer.
+- A generated 20M-event/5M-click Windows Docker scale run exceeded the official five-minute practice ceiling and was stopped. The submission is correctness-complete but has not passed a local practice-scale performance gate.
+
+`run.sh` explicitly sends both general Polars temporary files and Polars 2.1 out-of-core spill files to `/scratch`; this is required because the scorer root filesystem is read-only.
 
 ## Repository layout
 

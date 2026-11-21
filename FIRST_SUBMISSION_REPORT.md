@@ -11,7 +11,8 @@ A complete first-submission candidate is implemented and containerized.
 - Dev output sizes: 117,038 user-day rows and 27,400 campaign-day rows.
 - Unit tests: passed.
 - Docker: linux/amd64 image builds successfully; 443,198,577 bytes, well below the 8 GB image limit.
-- Docker execution was verified under no-network, read-only-root, uid 1000, 8 CPU and 24 GB constraints.
+- Docker execution was verified on the 1M dev set under no-network, read-only-root, uid 1000, 8 CPU and 24 GB limits.
+- A generated 20M-event/5M-click Windows Docker run exceeded the five-minute practice ceiling and was stopped. This local scale gate therefore failed; no competitive-runtime claim is made.
 
 ## Runtime
 
@@ -20,8 +21,11 @@ A complete first-submission candidate is implemented and containerized.
 | Local Python/Polars before narrow-frame reuse | 4.797 s | exact |
 | Local Python/Polars after optimization, 3-run median | 2.958 s | exact |
 | Windows Docker Desktop, scorer-like flags | 9.154 s | exact |
+| Windows Docker Desktop, generated 20M/5M corpus | >300 s (stopped) | did not finish inside practice cap |
 
 Local and Windows Docker results are not comparable to the official Linux scorer. The optimization reduced the local run by 38.3% by avoiding a second event scan, deduplication, identity join and session sort.
+
+The first scale attempt also exposed a container-specific correctness issue: Polars 2.1's out-of-core engine uses `POLARS_OOC_SPILL_DIR`, not the generic `POLARS_TEMP_DIR`. Without the dedicated setting it tried `/var/tmp` and failed against the read-only root. `run.sh` now creates `/scratch/polars-spill` and exports the dedicated variable. A repeat passed that failure point, but still exceeded the local five-minute ceiling.
 
 ## Submission status
 
@@ -46,4 +50,4 @@ After GitHub sign-in:
 
 ## Recommendation
 
-Submit this correctness-first Polars revision immediately once authenticated to obtain an official runtime. For the next revision, profile the hidden result first. If runtime is already below 60 seconds, prioritize a compiled Rust fused pipeline only after preserving this version as the selected correctness baseline.
+Submit this correctness-first Polars revision once authenticated to obtain the only authoritative Linux/24 GB runtime, but treat it as a baseline rather than a competitive candidate: the local 20M scale gate failed. Preserve this exact version, then prioritize a fused compiled implementation (raw parsing, identity encoding, sessionization and attribution) if the official practice run also approaches the cap.
