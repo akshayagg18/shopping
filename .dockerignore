@@ -1,0 +1,10 @@
+official
+tests
+experiments
+submission
+*.zip
+*.md
+.git
+__pycache__
+output
+dev

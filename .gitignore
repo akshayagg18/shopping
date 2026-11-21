@@ -1,0 +1,8 @@
+official/
+output/
+dev/
+experiments/dev-*/
+experiments/out-*/
+experiments/scratch-*/
+__pycache__/
+*.pyc
