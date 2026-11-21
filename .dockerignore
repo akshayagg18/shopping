@@ -1,10 +1,9 @@
-official
-tests
-experiments
-submission
-*.zip
-*.md
 .git
+.pytest_cache
 __pycache__
-output
-dev
+tests/
+docs/
+*.zip
+*.pyc
+*.csv
+shopping_core

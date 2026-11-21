@@ -1,63 +1,45 @@
-# Builders Buildathon 2026 — Shopping Sessions
+# Shopping Sessions — Performance V2
 
-Exact, performance-oriented solution for the Databricks Shopping Sessions track. The pipeline reads dirty CSV shards from `/data` and writes the two required Parquet datasets to `/output/user_daily/` and `/output/campaign_daily/`.
+Optimized C++20 submission candidate for [Builders Buildathon 2026 — Databricks Shopping Sessions](https://www.joinbuilders.org/buildathon/tracks/shopping-sessions).
 
-## Architecture
+**Status:** Tested locally; official development fixtures, Docker runtime and competition score have NOT been verified for this commit. **The goal is under 5 seconds, but this has not yet been proven.** See [Performance and validation report](docs/PERFORMANCE_V2.md).
 
-- Spec-exact physical-line CSV validation; malformed rows are rejected before field interpretation.
-- Polars lazy scans, hash deduplication, identity joins, session sorting and aggregations.
-- Path-compressed union-find for transitive identity resolution.
-- Linear sliding-window click sweep per person for last-click credit and unique-campaign assists, avoiding a session×click range join.
-- One narrow materialization after sessionization feeds both output aggregates, avoiding a second full event scan and sort.
+## What's different from the earlier 31-second entry?
 
-## Build and run
+Parallel memory-mapped CSV ingestion, hash-partitioned deduplication, safe approximate duplicate detection followed by exact resolution, cached user root mapping, linear-time per-person bucketing, local sorting, and no raw-event binary scratch-file round trip. Existing campaign-assistance interval compression and dense aggregates remain.
 
-```bash
-docker build -t shopping-sessions .
-mkdir -p out scratch
-docker run --rm --network none --read-only --user 1000:1000 \
-  --cpus 8 --memory 24g --tmpfs /tmp:rw,size=64m \
-  -e DATA_DIR=/data -e OUTPUT_DIR=/output -e SCRATCH_DIR=/scratch \
-  -e HOME=/scratch -e NCPU=8 -e MEM_GB=24 \
-  -v "$PWD/dev:/data:ro" -v "$PWD/out:/output" -v "$PWD/scratch:/scratch" \
-  shopping-sessions
-```
+The approximate duplicate filter is a *routing accelerator only*: it never removes an ID or conflates IDs on a hash collision; all potential duplicates are compared by full ID and earliest ingest time.
 
-For a direct local run:
+## Submission
+
+At the repository root there is a `Dockerfile`. The competition builds it and runs its entrypoint against the mounted `/data` folder. The entrypoint writes the two exact Parquet datasets into `/output/user_daily/` and `/output/campaign_daily/`.
+
+Submit `https://github.com/akshayagg18/shopping` with the **40-character commit hash for the performance-v2 branch**. Do not assume the default branch `main` is this implementation.
+
+## Local checks
 
 ```bash
-python -m pip install -r requirements.txt
-DATA_DIR=dev OUTPUT_DIR=out NCPU=8 python src/pipeline.py
+python3 -m pytest -q tests/
+g++ -std=c++20 -O3 -DNDEBUG -pthread src/solver.cpp -o shopping_core
+./shopping_core /path/to/data /path/to/output /path/to/scratch
 ```
 
-## Official verification
+The C++ core writes temporary intermediate summary CSV files. At scoring time, `src/export_parquet.py` invokes the core and converts these summaries into Parquet via DuckDB.
 
-Download `rules.md`, `starter-polars.zip`, `generator.zip`, and `dev-answer.zip` from the official track page. Then:
+**Mandatory before relying on the score:** Obtain `generator.zip` and `dev-answer.zip` from the official track page and execute:
 
 ```bash
-python starter-polars/scripts/run_fixtures.py starter-polars/fixtures -- python src/pipeline.py
-generate --seed 1 --events 1000000 --clicks 250000 --output dev
-DATA_DIR=dev OUTPUT_DIR=out NCPU=8 python src/pipeline.py
-python starter-polars/scripts/compare.py out dev-answer
+bash scripts/verify_docker.sh /absolute/path/to/generated-dev-data /absolute/path/to/unzipped-dev-answer
 ```
 
-Verified results for this revision:
+The local environment used to author this implementation could not fetch the official ZIPs or run Docker. A passing local test suite is not equivalent to official correctness, nor does a fast C++ core prove a fast complete container.
 
-- 36/36 official edge fixtures pass.
-- Both 1M dev tables exactly match the official answers (117,038 `user_daily` rows; 27,400 `campaign_daily` rows).
-- Local Python median: 2.958 seconds over three warm runs.
-- Scorer-like Docker wall time on Windows Docker Desktop: 9.154 seconds. This is not comparable to the official Linux scorer.
-- A generated 20M-event/5M-click Windows Docker scale run exceeded the official five-minute practice ceiling and was stopped. The submission is correctness-complete but has not passed a local practice-scale performance gate.
+## Layout
 
-`run.sh` explicitly sends both general Polars temporary files and Polars 2.1 out-of-core spill files to `/scratch`; this is required because the scorer root filesystem is read-only.
+- `src/solver.cpp` — complete C++ cleaning, DSU, sessionization and attribution engine.
+- `src/export_parquet.py` — final Parquet export, using DuckDB.
+- `tests/` — targeted and randomized correctness tests.
+- `scripts/` — official Docker comparison helpers.
+- `docs/PERFORMANCE_V2.md` — detailed benchmark and limitations.
 
-## Repository layout
-
-- `src/pipeline.py` — implementation
-- `tests/` — unit tests and verification notes
-- `experiments/` — benchmark notes (generated data is ignored)
-- `submission/` — scorer packaging and submission checklist
-- `research.md` — rules, competition and optimization research
-- `FIRST_SUBMISSION_REPORT.md` — first-submission status and recommendations
-
-The implementation uses Polars 2.1.0 under its MIT license. Challenge starter materials and generated data are intentionally not committed. This repository is MIT licensed.
+The event deduplication phase preserves the earliest *ingested* structurally valid CSV row for each event ID, then applies event validation, including invalid-first-copy precedence. Unknown product categories, byte-exact IDs, linked identities, 30-minute gap rule, seven-day click attribution, deterministic tie breaks and organic credit are implemented according to the official published rules.
